@@ -6,7 +6,7 @@
 
 [[redirects]]
   from = "/*"
-  to = "/index.html"
+  to = "/demo.html"
   status = 200
 
 [[headers]]
