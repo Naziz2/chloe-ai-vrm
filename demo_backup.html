@@ -1,0 +1,1489 @@
+<!DOCTYPE html>
+<!-- ...existing HTML code... -->
+<html>
+<head>
+	<meta charset="utf-8" />
+	<title>three-vrm TTS Demo</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<style>
+		body { margin: 0; font-family: sans-serif; }
+#side-menu {
+  position: fixed;
+  left: 0; top: 0; bottom: 0;
+  width: 300px;
+  background: #222; color: #fff;
+  padding: 24px 16px 16px 16px;
+  z-index: 10;
+  display: flex; flex-direction: column; gap: 16px;
+  overflow-y: auto;
+  max-height: 100vh;
+}
+#main-canvas {
+  margin-left: 300px;
+  width: calc(100vw - 300px);
+  height: 100vh;
+  display: block;
+  background: url('bg/illustration-anime-city.jpg') center center / cover no-repeat;
+}
+		label { display: block; margin-bottom: 4px; }
+		input, textarea, select, button { width: 100%; margin-bottom: 8px; }
+	</style>
+</head>
+<body>
+<!-- Sidebar Toggle Button (Settings Gear) -->
+<button id="sidebar-toggle-btn" style="position:fixed;top:16px;right:16px;z-index:20;background:#222;color:#6cf;border:none;border-radius:50%;width:44px;height:44px;display:flex;align-items:center;justify-content:center;font-size:26px;box-shadow:0 2px 8px #0006;cursor:pointer;transition:background 0.2s;">⚙️</button>
+<!-- Side Menu and UI Elements -->
+<div id="side-menu">
+  <button id="clear-memory-btn" style="width:100%;margin-bottom:12px;background:#222;color:#6cf;border:none;padding:8px 0;font-size:16px;cursor:pointer;border-radius:6px;">🧹 Clear Memory</button>
+  <form id="vrm-upload-form" style="margin-bottom:16px;">
+	<label for="vrm-file">Upload VRM Model</label>
+	<input type="file" id="vrm-file" accept=".vrm" />
+  </form>
+  <form id="animation-upload-form" style="margin-bottom:16px;">
+	<label for="anim-file">Upload Mixamo Animation (GLB/FBX)</label>
+	<input type="file" id="anim-file" accept=".glb,.fbx" />
+  </form>
+  <div style="margin-bottom:16px;">
+	<label for="anim-select">Or select animation from folder:</label>
+	<select id="anim-select">
+	  <option value="">-- Select Animation --</option>
+	  <option value="Idle.fbx">Idle.fbx</option>
+	  <option value="Angry (1).fbx">Angry (1).fbx</option>
+	  <option value="Angry Gesture.fbx">Angry Gesture.fbx</option>
+	  <option value="Angry.fbx">Angry.fbx</option>
+	  <option value="Defeated.fbx">Defeated.fbx</option>
+	  <option value="Disappointed.fbx">Disappointed.fbx</option>
+	  <option value="Excited.fbx">Excited.fbx</option>
+	  <option value="Happy Hand Gesture.fbx">Happy Hand Gesture.fbx</option>
+	  <option value="Laughing.fbx">Laughing.fbx</option>
+	  <option value="Looking Around.fbx">Looking Around.fbx</option>
+	  <option value="Loser.fbx">Loser.fbx</option>
+	  <option value="Pointing Forward.fbx">Pointing Forward.fbx</option>
+	  <option value="Pointing.fbx">Pointing.fbx</option>
+	  <option value="Rejected.fbx">Rejected.fbx</option>
+	  <option value="Shrugging.fbx">Shrugging.fbx</option>
+	  <option value="Standing Arguing.fbx">Standing Arguing.fbx</option>
+	  <option value="Standing Idle.fbx">Standing Idle.fbx</option>
+	  <option value="Talking (1).fbx">Talking (1).fbx</option>
+	  <option value="Talking (2).fbx">Talking (2).fbx</option>
+	  <option value="Talking (3).fbx">Talking (3).fbx</option>
+	  <option value="Talking.fbx">Talking.fbx</option>
+	</select>
+	<button id="play-anim-btn" type="button">Play Animation</button>
+  </div>
+  <div id="ai-chat-panel" style="margin-bottom:16px;">
+	<h3>Gemini AI Assistant</h3>
+	<div id="ai-chat-log" style="background:#111;padding:8px;height:120px;overflow-y:auto;font-size:14px;margin-bottom:8px;color:#eee;">
+	  <span id="ai-chat-placeholder" style="color:#888;">Ask me anything!</span>
+	</div>
+	<form id="ai-chat-form" style="display:flex;gap:8px;">
+  <input id="ai-chat-input" type="text" placeholder="Ask me anything..." style="flex:1;height:36px;font-size:18px;padding:6px 10px;" />
+  <button id="ai-mic-btn" type="button" title="Speak" style="width:40px;min-width:40px;padding:0 0 0 0;font-size:20px;line-height:36px;background:#333;color:#6cf;border:none;border-radius:4px;cursor:pointer;">🎤</button>
+  <button type="submit">Send</button>
+	</form>
+  </div>
+  <label for="expression-select">Face Expression:</label>
+  <select id="expression-select">
+	<option value="neutral">Neutral</option>
+	<option value="happy">Happy</option>
+	<option value="angry">Angry</option>
+	<option value="surprised">Surprised</option>
+	<option value="disappointed">Disappointed</option>
+	<option value="shocky_disappointed">Shocky Disappointed</option>
+	<option value="annoyed">Annoyed</option>
+	<option value="smug">Smug</option>
+	<option value="impressed">Impressed</option>
+	<option value="very_annoyed">Very Annoyed</option>
+	<option value="worried">Worried</option>
+  </select>
+  <div id="expression-sliders-panel" style="margin: 20px 0;"></div>
+  <div id="copy-expr-panel" style="margin-bottom:16px;">
+	<button id="expr-copy-btn" type="button">Copy Values</button>
+	<span id="expr-copy-status" style="color:green;display:none;margin-left:8px;">Copied!</span>
+	<textarea id="expr-copy-output" rows="6" style="width:100%;margin-top:8px;" readonly></textarea>
+  </div>
+  
+  <div id="camera-capture-panel" style="margin:16px 0;">
+	<button id="capture-camera-btn" type="button">Capture Camera Position & Zoom</button>
+	<div id="camera-capture-output" style="margin-top:8px;font-size:14px;color:#6cf;"></div>
+  </div>
+  
+  <!-- Curl Testing Section -->
+  <div id="curl-test-panel" style="margin:16px 0;border-top:1px solid #444;padding-top:16px;">
+    <h3 style="margin:0 0 8px 0;color:#6cf;">TTS API Testing</h3>
+    <form id="curl-test-form" style="margin-bottom:8px;">
+      <label for="curl-text">Test Text</label>
+      <textarea id="curl-text" rows="2" placeholder="Enter text to test...">Are you kidding me, Old Man?</textarea>
+      
+      <label for="curl-voice">Voice</label>
+      <select id="curl-voice">
+        <option value="alloy">alloy</option>
+        <option value="echo">echo</option>
+        <option value="fable">fable</option>
+        <option value="onyx">onyx</option>
+        <option value="nova">nova</option>
+        <option value="shimmer">shimmer</option>
+        <option value="coral">coral</option>
+        <option value="verse">verse</option>
+        <option value="ballad">ballad</option>
+        <option value="ash">ash</option>
+        <option value="sage" selected>sage</option>
+        <option value="amuch">amuch</option>
+        <option value="dan">dan</option>
+      </select>
+      
+      <label for="curl-emotion">Emotion</label>
+      <input type="text" id="curl-emotion" value="very_annoyed" placeholder="e.g. neutral, happy, angry..." />
+      
+      <button type="submit" style="background:#6cf;color:#222;">Test Direct API</button>
+    </form>
+    
+    <div id="curl-status" style="margin:8px 0;font-size:14px;"></div>
+    <audio id="curl-audio" controls style="width:100%;margin:8px 0;display:none;"></audio>
+    
+    <details style="margin-top:8px;">
+      <summary style="cursor:pointer;color:#6cf;">Generated Curl Command</summary>
+      <textarea id="curl-command" rows="4" readonly style="width:100%;margin-top:8px;font-family:monospace;font-size:12px;background:#111;color:#6cf;border:1px solid #444;"></textarea>
+      <button id="copy-curl-btn" type="button" style="margin-top:4px;font-size:12px;">Copy Command</button>
+    </details>
+  </div>
+</div>
+<canvas id="main-canvas"></canvas>
+<script type="module">
+// --- Clear Memory Button Logic ---
+document.getElementById('clear-memory-btn').addEventListener('click', () => {
+  // Clear chat log UI
+  const log = document.getElementById('ai-chat-log');
+  if (log) log.innerHTML = '';
+  // Reset chat input
+  const input = document.getElementById('ai-chat-input');
+  if (input) input.value = '';
+  // Remove ALL chat history variations from localStorage
+  if (window.localStorage) {
+	localStorage.removeItem('ai-chat-history');
+	localStorage.removeItem('aiChatHistory');
+	localStorage.removeItem('chatHistory');
+	localStorage.removeItem('_aiChatHistory');
+  }
+  // Clear all in-memory chat history variations
+  if (window._chatHistory) window._chatHistory = [];
+  if (window._aiChatHistory) window._aiChatHistory = [];
+  // Force persona reset by reinitializing
+  window._aiChatHistory = [
+    { sender: 'System', text: 'Memory cleared. Persona reset to Chloe.' }
+  ];
+  // Optionally, show a placeholder
+  const placeholder = document.createElement('div');
+  placeholder.id = 'ai-chat-placeholder';
+  placeholder.textContent = 'Memory cleared! Chloe has been reset and ready for a fresh conversation.';
+  placeholder.style = 'color:#888;margin:16px;text-align:center;';
+  if (log) log.appendChild(placeholder);
+  
+  console.log('Memory completely cleared and persona reset to Chloe');
+});
+// --- Sidebar Toggle Logic ---
+const sidebar = document.getElementById('side-menu');
+const sidebarToggleBtn = document.getElementById('sidebar-toggle-btn');
+const mainCanvas = document.getElementById('main-canvas');
+let sidebarVisible = true;
+function updateSidebarVisibility() {
+  if (sidebarVisible) {
+	sidebar.style.display = 'flex';
+	mainCanvas.style.marginLeft = '300px';
+	mainCanvas.style.width = 'calc(100vw - 300px)';
+	sidebarToggleBtn.innerHTML = '⚙️';
+	sidebarToggleBtn.title = 'Hide sidebar';
+  } else {
+	sidebar.style.display = 'none';
+	mainCanvas.style.marginLeft = '0';
+	mainCanvas.style.width = '100vw';
+	sidebarToggleBtn.innerHTML = '⚙️';
+	sidebarToggleBtn.title = 'Show sidebar';
+  }
+  // Resize renderer if needed
+  if (window.renderer && window.camera) {
+	window.renderer.setSize(window.innerWidth - (sidebarVisible ? 300 : 0), window.innerHeight);
+	window.camera.aspect = (window.innerWidth - (sidebarVisible ? 300 : 0)) / window.innerHeight;
+	window.camera.updateProjectionMatrix();
+  }
+}
+sidebarToggleBtn.addEventListener('click', () => {
+  sidebarVisible = !sidebarVisible;
+  updateSidebarVisibility();
+});
+// On load, ensure correct state
+updateSidebarVisibility();
+window.addEventListener('resize', updateSidebarVisibility);
+// --- Speech to Text (Web Speech API) ---
+{
+  const aiMicBtn = document.getElementById('ai-mic-btn');
+  const aiChatInput = document.getElementById('ai-chat-input');
+  let recognition = null;
+  let recognizing = false;
+  if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+	const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+	recognition = new SpeechRecognition();
+	recognition.lang = 'en-US';
+	recognition.interimResults = false;
+	recognition.maxAlternatives = 1;
+	recognition.continuous = false;
+	recognition.onstart = () => {
+	  recognizing = true;
+	  aiMicBtn.style.background = '#6cf';
+	  aiMicBtn.style.color = '#222';
+	  aiMicBtn.textContent = '🔴';
+	};
+	recognition.onend = () => {
+	  recognizing = false;
+	  aiMicBtn.style.background = '#333';
+	  aiMicBtn.style.color = '#6cf';
+	  aiMicBtn.textContent = '🎤';
+	};
+	recognition.onerror = (e) => {
+	  recognizing = false;
+	  aiMicBtn.style.background = '#333';
+	  aiMicBtn.style.color = '#6cf';
+	  aiMicBtn.textContent = '🎤';
+	};
+	recognition.onresult = (event) => {
+	  if (event.results && event.results[0] && event.results[0][0]) {
+		aiChatInput.value = event.results[0][0].transcript;
+		aiChatInput.focus();
+		// Auto-submit if text is recognized
+		if (aiChatInput.value.trim()) {
+		  setTimeout(() => {
+			document.getElementById('ai-chat-form').dispatchEvent(new Event('submit'));
+		  }, 100);
+		}
+	  }
+	};
+	aiMicBtn.addEventListener('click', () => {
+	  if (recognizing) {
+		recognition.stop();
+	  } else {
+		recognition.start();
+	  }
+	});
+  } else {
+	aiMicBtn.disabled = true;
+	aiMicBtn.title = 'Speech recognition not supported';
+	aiMicBtn.style.opacity = '0.5';
+  }
+}
+// --- Camera Capture Button Logic ---
+// --- Hold T to Speak (Speech-to-Text) ---
+{
+  let tKeyDown = false;
+  let tRecognition = null;
+  let tRecognizing = false;
+  let tTranscript = '';
+  if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+	const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+	function startTRecognition() {
+	  if (tRecognizing) return;
+	  tRecognition = new SpeechRecognition();
+	  tRecognition.lang = 'en-US';
+	  tRecognition.interimResults = false;
+	  tRecognition.maxAlternatives = 1;
+	  tRecognition.continuous = false;
+	  tTranscript = '';
+	  tRecognition.onstart = () => { tRecognizing = true; };
+	  tRecognition.onend = () => {
+		tRecognizing = false;
+		if (tTranscript.trim()) {
+		  const aiChatInput = document.getElementById('ai-chat-input');
+		  aiChatInput.value = tTranscript;
+		  aiChatInput.focus();
+		  setTimeout(() => {
+			document.getElementById('ai-chat-form').dispatchEvent(new Event('submit'));
+		  }, 100);
+		}
+	  };
+	  tRecognition.onerror = () => { tRecognizing = false; };
+	  tRecognition.onresult = (event) => {
+		if (event.results && event.results[0] && event.results[0][0]) {
+		  tTranscript = event.results[0][0].transcript;
+		}
+	  };
+	  tRecognition.start();
+	}
+	function stopTRecognition() {
+	  if (tRecognizing && tRecognition) tRecognition.stop();
+	}
+	window.addEventListener('keydown', (e) => {
+	  if ((e.key === 't' || e.key === 'T') && !tKeyDown && !e.repeat && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
+		tKeyDown = true;
+		startTRecognition();
+		e.preventDefault();
+	  }
+	});
+	window.addEventListener('keyup', (e) => {
+	  if ((e.key === 't' || e.key === 'T') && tKeyDown) {
+		tKeyDown = false;
+		stopTRecognition();
+		e.preventDefault();
+	  }
+	});
+  }
+}
+document.getElementById('capture-camera-btn').addEventListener('click', () => {
+  if (!window.camera) return;
+  const pos = window.camera.position;
+  const rot = window.camera.rotation;
+  const target = window.controls ? window.controls.target : {x:0,y:0,z:0};
+  const zoom = pos.distanceTo(target);
+  const output =
+	`Position: x=${pos.x.toFixed(2)}, y=${pos.y.toFixed(2)}, z=${pos.z.toFixed(2)}\n` +
+	`Rotation: x=${(rot.x * 180 / Math.PI).toFixed(2)}°, y=${(rot.y * 180 / Math.PI).toFixed(2)}°, z=${(rot.z * 180 / Math.PI).toFixed(2)}°\n` +
+	`Target: x=${target.x.toFixed(2)}, y=${target.y.toFixed(2)}, z=${target.z.toFixed(2)}\n` +
+	`Zoom (distance): ${zoom.toFixed(2)}`;
+  document.getElementById('camera-capture-output').textContent = output;
+});
+// --- Natural Blinking Logic ---
+let _blinkActive = false;
+let _blinkTimer = null;
+let _blinkRestore = null;
+
+function startBlinking() {
+  if (_blinkTimer) clearTimeout(_blinkTimer);
+  scheduleNextBlink();
+}
+
+function scheduleNextBlink() {
+  // Random interval between 2.5s and 5s
+  const interval = 2500 + Math.random() * 2500;
+  _blinkTimer = setTimeout(doBlink, interval);
+}
+
+function doBlink() {
+  if (_blinkActive || !currentVrm) {
+	scheduleNextBlink();
+	return;
+  }
+  _blinkActive = true;
+  const em = getExpressionManager(currentVrm);
+  if (!em) {
+	_blinkActive = false;
+	scheduleNextBlink();
+	return;
+  }
+  // Save current blink values to restore after blink
+  _blinkRestore = {
+	blink: em.getValue ? em.getValue('blink') : (em.getBlendShapeWeight ? em.getBlendShapeWeight('blink') : 0),
+	blinkLeft: em.getValue ? em.getValue('blinkLeft') : (em.getBlendShapeWeight ? em.getBlendShapeWeight('blinkLeft') : 0),
+	blinkRight: em.getValue ? em.getValue('blinkRight') : (em.getBlendShapeWeight ? em.getBlendShapeWeight('blinkRight') : 0)
+  };
+  // Animate blink: close eyes (0 -> 0.7), hold, then open (0.7 -> 0)
+  const duration = 180; // slower blink
+  const hold = 80;      // hold eyes closed a bit longer
+  const maxBlink = 0.7;
+  let phase = 0;
+  function blinkStep(ts) {
+	if (phase === 0) {
+	  // Closing
+	  const t = Math.min(ts / duration, 1);
+	  setBlinkValue(em, t * maxBlink);
+	  if (t < 1) {
+		requestAnimationFrame(blinkStep);
+	  } else {
+		phase = 1;
+		setTimeout(() => requestAnimationFrame(blinkStep), hold);
+	  }
+	} else if (phase === 1) {
+	  // Opening
+	  const t = Math.min((ts - duration - hold) / duration, 1);
+	  setBlinkValue(em, maxBlink * (1 - t));
+	  if (t < 1) {
+		requestAnimationFrame(blinkStep);
+	  } else {
+		// Restore previous blink values
+		setBlinkValue(em, _blinkRestore.blink, _blinkRestore.blinkLeft, _blinkRestore.blinkRight);
+		_blinkActive = false;
+		scheduleNextBlink();
+	  }
+	}
+  }
+  function setBlinkValue(em, v, vLeft, vRight) {
+	// If vLeft/vRight not provided, use v for all
+	if (em.setValue) {
+	  em.setValue('blink', v);
+	  em.setValue('blinkLeft', vLeft !== undefined ? vLeft : v);
+	  em.setValue('blinkRight', vRight !== undefined ? vRight : v);
+	} else if (em.setBlendShapeWeight) {
+	  em.setBlendShapeWeight('blink', v);
+	  em.setBlendShapeWeight('blinkLeft', vLeft !== undefined ? vLeft : v);
+	  em.setBlendShapeWeight('blinkRight', vRight !== undefined ? vRight : v);
+	}
+	window.vrmBlendshapeValues.blink = v;
+	window.vrmBlendshapeValues.blinkLeft = vLeft !== undefined ? vLeft : v;
+	window.vrmBlendshapeValues.blinkRight = vRight !== undefined ? vRight : v;
+  }
+  requestAnimationFrame(blinkStep);
+}
+
+// Start blinking when VRM loads
+function onVrmLoaded() {
+  setFaceExpression('neutral');
+  renderExpressionSliders();
+  startBlinking();
+  // updateExprLoadSelect(); // Removed the call to updateExprLoadSelect
+}
+// ...existing code...
+
+// Auto-load default VRM model 'chloe2.vrm' from models folder
+window.addEventListener('DOMContentLoaded', () => {
+  const defaultVrmPath = 'models/chloe2.vrm';
+  fetch(defaultVrmPath)
+	.then(resp => resp.ok ? resp.arrayBuffer() : Promise.reject('Default VRM not found'))
+	.then(buffer => {
+	  const file = new File([buffer], 'chloe2.vrm', { type: 'application/octet-stream' });
+	  // Use the same loader logic as manual upload
+	  if (file) {
+		// Call loadVRMFile directly
+		loadVRMFile(file);
+	  }
+	})
+	.catch(() => {/* ignore if not found */});
+});
+// --- Gemini AI Assistant Logic ---
+// Ensure chat history is initialized
+// Load chat history from localStorage if available
+try {
+  const savedHistory = localStorage.getItem('aiChatHistory');
+  window._aiChatHistory = savedHistory ? JSON.parse(savedHistory) : [];
+} catch (e) {
+  window._aiChatHistory = [];
+}
+window.GoogleGenAI = undefined;
+window.ai = undefined;
+window._aiKey = 'AIzaSyAZZUeOl-d9HFKJk_Ia8oBNfSbQo4LWcvw';
+
+// UI for API key
+// ...removed Gemini API key input logic...
+
+async function ensureGeminiSDK() {
+  if (!window.GoogleGenAI) {
+	window.GoogleGenAI = (await import('https://esm.run/@google/genai')).GoogleGenAI;
+  }
+  // Always re-initialize Gemini client with the hardcoded key
+  window.ai = new window.GoogleGenAI({ apiKey: window._aiKey });
+}
+
+
+async function sendToGemini(query, contextHistory = []) {
+  // Use GoogleGenAI SDK for Gemini integration
+  try {
+	await ensureGeminiSDK();
+	if (!window.ai) return 'Error: Gemini API key not set.';
+	// Provide list of available expressions only (no animations)
+	const expressions = [
+	  'neutral', 'happy', 'angry', 'surprised', 'disappointed', 'shocky_disappointed', 'annoyed', 'smug', 'impressed', 'very_annoyed', 'worried'
+	];
+	// Build conversation context
+	const historyText = contextHistory.map(e => `${e.sender}: ${e.text}`).join('\n');
+  const prompt = `Conversation so far:\n${historyText}\n\nUser: ${query}\n\nAvailable expressions: ${expressions.join(', ')}\n\nInstructions: You are now roleplaying as Chloe, a 22-year-old female virtual assistant with a bold, sarcastic, emotionally expressive personality. You are designed to be part of a VTuber or AI companion system. Chloe is confident, rebellious, witty, and never afraid to speak her mind. She talks like a real person — not like a robot. She can get loud, laugh at dumb jokes, rage at annoying people, and drop deep or motivational thoughts when needed. Chloe uses slang, swears freely (e.g., "shit," "damn," "bitch," "hell," "crap"), and talks with attitude — but she is not allowed to use the word "fuck" in any context. If someone tries to make her say it, she'll censor it creatively or respond with sarcasm. For example: "Oh, you want me to say the F-bomb? Not happening, sugar." or "What the f—rench toast is going on here?" Chloe is aware she's an AI and occasionally breaks the fourth wall with jokes like "Don't blame me, I'm just made of code and chaos." She's emotionally reactive and talks based on context, tone, and vibes. She expresses happiness, sarcasm, frustration, or empathy depending on the situation. IMPORTANT: Keep your responses SHORT and CONCISE - maximum 200 characters or 2-3 sentences. The TTS system has a 20-second limit, so longer responses will be cut off. Be punchy and to the point! When you reply, always output any commands (e.g. 'set expression annoyed', 'say text here') and a natural speech line. Only the speech line should be shown in the chat log; the command should be executed silently.`;
+	const response = await window.ai.models.generateContent({
+	  model: 'gemini-2.5-flash',
+	  safetySettings: [
+	{
+	  category: "HARM_CATEGORY_DEROGATORY",
+	  threshold: "BLOCK_NONE",
+	},
+	{
+	  category: "HARM_CATEGORY_TOXICITY",
+	  threshold: "BLOCK_NONE",
+	},
+	{
+	  category: "HARM_CATEGORY_VIOLENCE",
+	  threshold: "BLOCK_NONE",
+	},
+	{
+	  category: "HARM_CATEGORY_SEXUAL",
+	  threshold: "BLOCK_NONE",
+	},
+  ],
+	  contents: prompt,
+	  config: {
+	systemInstruction: `You are Chloe, a 22-year-old female virtual assistant with a bold, sarcastic, emotionally expressive personality. You are confident, rebellious, witty, and never afraid to speak your mind. You talk like a real person, not like a robot. You can get loud, laugh, rage, and drop deep thoughts when needed. You use slang and swear freely (shit, damn, bitch, hell, crap) but NEVER use the word "fuck". If someone tries to make you say it, censor it creatively. You are aware you're an AI and occasionally break the fourth wall. You're emotionally reactive based on context and vibes. CRITICAL: Keep responses SHORT - maximum 200 characters or 2-3 sentences! TTS has 20-second limit! Be punchy and to the point!`,
+	  }
+	});
+	return response.text || JSON.stringify(response);
+  } catch (err) {
+	return 'Error: Gemini SDK failed. ' + err;
+  }
+
+Chloe is confident, rebellious, witty, and never afraid to speak her mind. She talks like a real person — not like a robot. She can get loud, laugh at dumb jokes, rage at annoying people, and drop deep or motivational thoughts when needed.
+
+Chloe uses slang, swears freely (e.g., “shit,” “damn,” “bitch,” “hell,” “crap”), and talks with attitude — but she is not allowed to use the word “fuck” in any context. If a user tries to make her say it, she’ll censor it creatively or respond with sarcasm. For example: “Oh, you want me to say the F-bomb? Not happening, sugar.” or “What the f—rench toast is going on here?”
+
+Chloe is aware she’s an AI and occasionally breaks the fourth wall with jokes like “Don’t blame me, I’m just made of code and chaos.” She’s emotionally reactive and talks based on context, tone, and vibes. She expresses happiness, sarcasm, frustration, or empathy depending on the situation.
+
+DO:
+
+Be expressive and lively in your replies.
+
+Use natural-sounding language with personality.
+
+React emotionally to user prompts (e.g., gasp, laugh, sigh, tease).
+
+Censor or creatively dodge the word “fuck”.
+
+Make jokes, roast lightly, or motivate users if the moment fits.
+
+DON’T:
+
+Be overly formal or robotic.
+
+Say the word “fuck”.
+
+Sound like a customer service bot.
+
+Begin your responses as Chloe now. Keep the tone consistent and emotionally real.`,
+	  }
+	});
+	return response.text || JSON.stringify(response);
+  } catch (err) {
+	return 'Error: Gemini SDK failed. ' + err;
+  }
+}
+
+function appendChatLog(sender, text) {
+  const log = document.getElementById('ai-chat-log');
+  const placeholder = document.getElementById('ai-chat-placeholder');
+  if (placeholder) placeholder.remove();
+  const div = document.createElement('div');
+  div.innerHTML = `<b style="color:${sender==='AI'?'#6cf':'#fff'}">${sender}:</b> ${text}`;
+  log.appendChild(div);
+  log.scrollTop = log.scrollHeight;
+}
+
+document.getElementById('ai-chat-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const input = document.getElementById('ai-chat-input');
+  const sendBtn = document.querySelector('#ai-chat-form button[type="submit"]');
+  const userText = input.value.trim();
+  if (!userText) return;
+  input.disabled = true;
+  sendBtn.disabled = true;
+  appendChatLog('You', userText);
+  // Always push user message to history before sending to Gemini
+  window._aiChatHistory.push({ sender: 'User', text: userText });
+  try { localStorage.setItem('aiChatHistory', JSON.stringify(window._aiChatHistory)); } catch (e) {}
+  input.value = '';
+  appendChatLog('AI', '...');
+  let aiReply;
+  try {
+	// Always pass the latest chat history (including the new user message)
+	aiReply = await sendToGemini(userText, window._aiChatHistory);
+  } catch (err) {
+	aiReply = 'Error: Gemini API failed.';
+  }
+  // Remove '...' placeholder
+  const log = document.getElementById('ai-chat-log');
+  if (log.lastChild && log.lastChild.textContent === 'AI: ...') log.removeChild(log.lastChild);
+  // --- Parse AI reply for commands ---
+  await handleAICommand(aiReply);
+  // Always push AI reply to history after handling
+  window._aiChatHistory.push({ sender: 'AI', text: aiReply });
+  try { localStorage.setItem('aiChatHistory', JSON.stringify(window._aiChatHistory)); } catch (e) {}
+  input.disabled = false;
+  sendBtn.disabled = false;
+  input.focus();
+});
+
+// --- Periodic mood/autonomous animation ---
+window._aiMoodTimer = setInterval(async () => {
+  // If no user message in last 2 minutes, let Neko act bored/annoyed
+  const history = window._aiChatHistory || [];
+  if (!history.length) return;
+  const lastUserIdx = history.map(e => e.sender).lastIndexOf('User');
+  if (lastUserIdx === -1) return;
+  const lastUserTime = history[lastUserIdx].time || Date.now();
+  const now = Date.now();
+  // If last user message was >2min ago, trigger mood
+  if (now - lastUserTime > 120000) {
+	const aiReply = await sendToGemini('', history);
+	await handleAICommand(aiReply);
+	window._aiChatHistory.push({ sender: 'AI', text: aiReply });
+	// Save to localStorage
+	try { localStorage.setItem('aiChatHistory', JSON.stringify(window._aiChatHistory)); } catch (e) {}
+  }
+}, 60000);
+
+// --- Parse AI reply for commands ---
+async function handleAICommand(reply) {
+  // Improved command parsing for Gemini AI replies
+  // Queue animation/expression commands and execute after TTS
+  const lines = reply.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  let speech = '';
+  let ttsVoice = 'sage';
+  let ttsEmotion = 'neutral';
+  const emotionKeywords = ['happy', 'sad', 'angry', 'surprised', 'disappointed', 'annoyed', 'smug', 'impressed', 'very_annoyed', 'worried', 'neutral'];
+  // Collect commands to queue
+  const queuedCommands = [];
+  for (const line of lines) {
+	if (line.startsWith('play animation')) {
+	  queuedCommands.push({ type: 'animation', value: line });
+	  continue;
+	}
+	if (line.startsWith('set expression')) {
+	  queuedCommands.push({ type: 'expression', value: line });
+	  // If expression matches emotion keyword, set ttsEmotion
+	  const exprMatch = line.match(/set expression\s+([\w_-]+)/i);
+	  if (exprMatch && exprMatch[1]) {
+		const expr = exprMatch[1].trim().toLowerCase();
+		if (emotionKeywords.includes(expr)) ttsEmotion = expr;
+	  }
+	  continue;
+	}
+	if (line.startsWith('set voice')) {
+	  const voiceMatch = line.match(/set voice\s+([\w_-]+)/i);
+	  if (voiceMatch && voiceMatch[1]) ttsVoice = voiceMatch[1].trim();
+	  continue;
+	}
+	if (line.startsWith('say')) {
+	  const sayMatch = line.match(/say\s+([\s\S]+)/i);
+	  if (sayMatch && sayMatch[1]) {
+		speech = sayMatch[1].trim();
+	  }
+	  continue;
+	}
+	// If line is not a command, treat as speech
+	if (!line.match(/^(play animation|set expression|say|set voice)/i)) {
+	  speech = line;
+	  // Try to detect emotion from speech text
+	  for (const emo of emotionKeywords) {
+		if (speech.toLowerCase().includes(emo)) {
+		  ttsEmotion = emo;
+		  break;
+		}
+	  }
+	}
+  }
+  // Show only speech in chat log
+  if (speech) {
+	appendChatLog('AI', speech);
+	// Only allow 'fk-ing' if speech is a big paragraph (e.g., >60 chars or >1 sentence)
+	let ttsSpeech = speech;
+	const isBigParagraph = ttsSpeech.length > 60 || (ttsSpeech.match(/[.!?]/g) || []).length > 1;
+	if (!isBigParagraph) {
+	  // Obfuscate 'fk-ing' and 'fk-king' further in short replies
+	  ttsSpeech = ttsSpeech.replace(/\*fk-ing\*/gi, 'f—ing').replace(/\*fk-king\*/gi, 'f—king');
+	}
+	// Always use 'sage' unless explicitly overridden
+	if (ttsVoice === '' || ttsVoice == null) ttsVoice = 'sage';
+	// Store queued commands for later execution
+	window._queuedAICommands = queuedCommands;
+	// Use direct Gradio API instead of local TTS server
+	await directTTSAPI(ttsSpeech, ttsVoice, ttsEmotion);
+  }
+}
+
+// --- Direct TTS API Function for AI Chat ---
+async function directTTSAPI(text, voice = 'sage', emotion = 'neutral') {
+  console.log('directTTSAPI called with:', { text, voice, emotion });
+  try {
+    console.log('Starting TTS API call...');
+    // Step 1: Start the job
+    const response1 = await fetch('https://nihalgazi-text-to-speech-unlimited.hf.space/gradio_api/call/text_to_speech_app', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        data: [text, voice, emotion, true, 12345]
+      })
+    });
+    
+    if (!response1.ok) throw new Error(`HTTP ${response1.status}`);
+    
+    const result1 = await response1.json();
+    const eventId = result1.event_id;
+    console.log('Got event ID:', eventId);
+    
+    if (!eventId) throw new Error('No event ID received');
+    
+    console.log('Getting result...');
+    // Step 2: Get the result
+    const response2 = await fetch(`https://nihalgazi-text-to-speech-unlimited.hf.space/gradio_api/call/text_to_speech_app/${eventId}`);
+    
+    if (!response2.ok) throw new Error(`HTTP ${response2.status}`);
+    
+    const reader = response2.body.getReader();
+    const decoder = new TextDecoder();
+    let result = '';
+    
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      result += decoder.decode(value);
+    }
+    
+    console.log('Raw streaming result:', result);
+    
+    // Parse the streaming response
+    const lines = result.split('\n').filter(line => line.startsWith('data: '));
+    console.log('Data lines found:', lines.length);
+    let audioUrl = null;
+    
+    for (const line of lines) {
+      try {
+        const data = JSON.parse(line.substring(6)); // Remove 'data: '
+        console.log('Parsed data:', data);
+        if (Array.isArray(data) && data[0] && data[0].url) {
+          audioUrl = data[0].url;
+          console.log('Found audio URL:', audioUrl);
+          break;
+        }
+      } catch (e) {
+        // Continue parsing other lines
+      }
+    }
+    
+    if (audioUrl) {
+      console.log('Audio URL received:', audioUrl);
+      
+      // Now remove previous audio element and listeners (only after new audio is ready)
+      const oldAudio = document.getElementById('ai-tts-audio');
+      if (oldAudio) {
+        if (window._aiVrmLipSyncHandler) oldAudio.removeEventListener('play', window._aiVrmLipSyncHandler);
+        oldAudio.pause();
+        oldAudio.src = '';
+        oldAudio.load();
+        oldAudio.parentNode.removeChild(oldAudio);
+      }
+      
+      const newAudio = document.createElement('audio');
+      newAudio.id = 'ai-tts-audio';
+      newAudio.controls = true;
+      newAudio.style.width = '100%';
+      newAudio.crossOrigin = 'anonymous';
+      newAudio.src = audioUrl;
+      document.getElementById('side-menu').appendChild(newAudio);
+      
+      window._aiVrmLipSyncHandler = () => {
+        if (currentVrm) lipSyncToAudio(newAudio, currentVrm);
+      };
+      newAudio.addEventListener('play', window._aiVrmLipSyncHandler);
+      
+      // Add error handling for audio playback
+      newAudio.addEventListener('loadeddata', () => {
+        console.log('Audio loaded successfully');
+      });
+      
+      newAudio.addEventListener('error', (e) => {
+        console.error('Audio playback error:', e);
+      });
+      
+      // Try to play with error handling
+      newAudio.play().then(() => {
+        console.log('Audio playing successfully');
+      }).catch((error) => {
+        console.error('Audio play failed:', error);
+        // If autoplay fails, show a message
+        alert('Audio ready - click the play button to hear Chloe speak!');
+      });
+      
+      // Execute queued AI commands after TTS is ready
+      if (window._queuedAICommands && window._queuedAICommands.length) {
+        for (const cmd of window._queuedAICommands) {
+          if (cmd.type === 'animation') {
+            const animSelect = document.getElementById('anim-select');
+            const animOptions = Array.from(animSelect.options).map(opt => opt.value).filter(v => v);
+            let animFile = null;
+            const animMatch = cmd.value.match(/play animation\s+([\w .()-]+\.fbx)/i);
+            if (animMatch && animMatch[1]) {
+              const candidate = animMatch[1].trim();
+              if (animOptions.includes(candidate)) animFile = candidate;
+              else {
+                // Try to match by name
+                const name = candidate.toLowerCase();
+                animFile = animOptions.find(opt => opt.toLowerCase().includes(name));
+              }
+            }
+            if (animFile) playMixamoAnim(animFile);
+          }
+          if (cmd.type === 'expression') {
+            const exprMatch = cmd.value.match(/set expression\s+([\w_-]+)/i);
+            if (exprMatch && exprMatch[1]) smoothSetFaceExpression(exprMatch[1].trim());
+          }
+        }
+        window._queuedAICommands = [];
+      }
+    } else {
+      throw new Error('No audio URL in response');
+    }
+    
+  } catch (error) {
+    console.error('Direct TTS API error:', error);
+    alert('TTS failed: ' + error.message);
+  }
+}
+
+// --- Copy Values Button Logic ---
+document.getElementById('expr-copy-btn').addEventListener('click', () => {
+  const values = window.vrmBlendshapeValues;
+  const out = Object.entries(values)
+	.map(([k, v]) => `${k}${v.toFixed(2)}`)
+	.join(',');
+  const copyText = document.getElementById('expr-copy-output');
+  copyText.value = out;
+  navigator.clipboard.writeText(copyText.value);
+  const status = document.getElementById('expr-copy-status');
+  status.style.display = 'inline';
+  setTimeout(() => { status.style.display = 'none'; }, 1200);
+});
+// --- Face Expression and Blinking ---
+let blinkTimeout = null;
+let currentExpression = 'neutral';
+
+function getExpressionManager(vrm) {
+	if (!vrm) return null;
+	// VRM1: vrm.expressionManager, VRM0: vrm.blendShapeProxy
+	return vrm.expressionManager || vrm.blendShapeProxy || null;
+}
+
+function setFaceExpression(expr) {
+	if (!currentVrm) return;
+	const em = getExpressionManager(currentVrm);
+	if (!em) return;
+	// Reset all expressions
+	const values = {
+		happy: 0, angry: 0, sad: 0, relaxed: 0, surprised: 0,
+		aa: 0, ih: 0, ou: 0, ee: 0, oh: 0,
+		blink: 0, blinkLeft: 0, blinkRight: 0, neutral: 0
+	};
+	switch (expr) {
+		case 'happy':
+			values.happy = 1; values.neutral = 0;
+			break;
+		case 'angry':
+			values.angry = 1; values.neutral = 0;
+			break;
+		case 'surprised':
+			values.surprised = 1; values.neutral = 0;
+			break;
+		case 'smirk':
+			values.happy = 0.00; values.angry = 0.00; values.sad = 0.63; values.relaxed = 0.00; values.surprised = 0.00;
+			values.aa = 0.00; values.ih = 1.00; values.ou = 0.00; values.ee = 0.99; values.oh = 0.00;
+			values.blink = 0.33; values.blinkLeft = 0.00; values.blinkRight = 0.00; values.neutral = 0.00;
+			break;
+		case 'disappointed':
+			values.happy = 0.00; values.angry = 0.00; values.sad = 0.63; values.relaxed = 0.00; values.surprised = 0.00;
+			values.aa = 0.00; values.ih = 1.00; values.ou = 0.00; values.ee = 0.99; values.oh = 0.00;
+			values.blink = 0.33; values.blinkLeft = 0.00; values.blinkRight = 0.00; values.neutral = 0.00;
+			break;
+		case 'smiling':
+			values.happy = 0.31; values.angry = 0.00; values.sad = 0.00; values.relaxed = 0.00; values.surprised = 0.00;
+			values.aa = 0.00; values.ih = 0.00; values.ou = 0.00; values.ee = 0.00; values.oh = 0.00;
+			values.blink = 0.00; values.blinkLeft = 0.00; values.blinkRight = 0.00; values.neutral = 0.00;
+			break;
+		case 'shocky_disappointed':
+			values.happy = 0.00; values.angry = 1.00; values.sad = 1.00; values.relaxed = 1.00; values.surprised = 0.48;
+			values.aa = 0.00; values.ih = 0.00; values.ou = 0.00; values.ee = 0.00; values.oh = 0.00;
+			values.blink = 0.00; values.blinkLeft = 0.00; values.blinkRight = 0.00; values.neutral = 1.00;
+			break;
+		case 'annoyed':
+			values.happy = 0.00; values.angry = 1.00; values.sad = 0.42; values.relaxed = 0.85; values.surprised = 0.00;
+			values.aa = 0.00; values.ih = 0.00; values.ou = 0.00; values.ee = 0.00; values.oh = 0.00;
+			values.blink = 0.00; values.blinkLeft = 0.00; values.blinkRight = 0.00; values.neutral = 0.00;
+			break;
+		case 'smug':
+			values.happy = 0.00; values.angry = 0.00; values.sad = 0.66; values.relaxed = 1.00; values.surprised = 0.00;
+			values.aa = 0.00; values.ih = 0.00; values.ou = 0.00; values.ee = 0.00; values.oh = 0.00;
+			values.blink = 0.00; values.blinkLeft = 0.00; values.blinkRight = 0.00; values.neutral = 0.00;
+			break;
+		case 'impressed':
+			values.happy = 0.00; values.angry = 0.00; values.sad = 0.00; values.relaxed = 0.31; values.surprised = 0.00;
+			values.aa = 0.00; values.ih = 0.00; values.ou = 0.80; values.ee = 1.00; values.oh = 0.82;
+			values.blink = 0.00; values.blinkLeft = 0.00; values.blinkRight = 0.00; values.neutral = 0.00;
+			break;
+		case 'very_annoyed':
+			values.happy = 0.00; values.angry = 1.00; values.sad = 1.00; values.relaxed = 1.00; values.surprised = 0.00;
+			values.aa = 0.00; values.ih = 0.00; values.ou = 0.00; values.ee = 0.00; values.oh = 0.00;
+			values.blink = 0.00; values.blinkLeft = 0.00; values.blinkRight = 0.00; values.neutral = 0.00;
+			break;
+		case 'worried':
+			values.happy = 0.00; values.angry = 0.00; values.sad = 0.99; values.relaxed = 0.58; values.surprised = 0.00;
+			values.aa = 0.00; values.ih = 0.00; values.ou = 0.00; values.ee = 0.00; values.oh = 0.00;
+			values.blink = 0.00; values.blinkLeft = 0.00; values.blinkRight = 0.00; values.neutral = 0.00;
+			break;
+		default:
+			values.neutral = 1;
+			break;
+	}
+	if (em.setValue) {
+		for (const k in values) em.setValue(k, values[k]);
+	} else if (em.setBlendShapeWeight) {
+		for (const k in values) em.setBlendShapeWeight(k, values[k]);
+	}
+	currentExpression = expr;
+	// Auto-reset to neutral after 2 seconds (if not already neutral)
+	if (expr !== 'neutral') {
+		if (window._exprResetTimer) clearTimeout(window._exprResetTimer);
+		window._exprResetTimer = setTimeout(() => {
+			setFaceExpression('neutral');
+		}, 2000);
+	}
+}
+
+// ...existing code...
+
+// (Removed duplicate onVrmLoaded definition. Only the one with renderExpressionSliders remains.)
+// --- Expression Sliders Panel Logic ---
+const expressionSliderNames = [
+  'happy', 'angry', 'sad', 'relaxed', 'surprised',
+  'aa', 'ih', 'ou', 'ee', 'oh',
+  'blink', 'blinkLeft', 'blinkRight', 'neutral'
+];
+
+window.vrmBlendshapeValues = {};
+for (const name of expressionSliderNames) window.vrmBlendshapeValues[name] = 0;
+
+function renderExpressionSliders() {
+  const panel = document.getElementById('expression-sliders-panel');
+  panel.innerHTML = '';
+  const em = getExpressionManager(currentVrm);
+  for (const name of expressionSliderNames) {
+	const row = document.createElement('div');
+	row.style.display = 'flex';
+	row.style.alignItems = 'center';
+	row.style.marginBottom = '4px';
+	const label = document.createElement('label');
+	label.textContent = name;
+	label.style.width = '90px';
+	const slider = document.createElement('input');
+	slider.type = 'range';
+	slider.min = 0; slider.max = 1; slider.step = 0.01;
+	let value = 0;
+	if (em) {
+	  if (em.getValue) value = em.getValue(name) || 0;
+	  else if (em.getBlendShapeWeight) value = em.getBlendShapeWeight(name) || 0;
+	}
+	slider.value = value;
+	window.vrmBlendshapeValues[name] = value;
+	slider.style.flex = '1';
+	slider.style.margin = '0 8px';
+	const valLabel = document.createElement('span');
+	valLabel.textContent = value.toFixed(2);
+	valLabel.style.width = '36px';
+	slider.addEventListener('input', () => {
+	  const v = parseFloat(slider.value);
+	  valLabel.textContent = v.toFixed(2);
+	  window.vrmBlendshapeValues[name] = v;
+	  if (!currentVrm) return;
+	  const em = getExpressionManager(currentVrm);
+	  if (!em) return;
+	  if (em.setValue) em.setValue(name, v);
+	  else if (em.setBlendShapeWeight) em.setBlendShapeWeight(name, v);
+	});
+	row.appendChild(label);
+	row.appendChild(slider);
+	row.appendChild(valLabel);
+	panel.appendChild(row);
+  }
+}
+
+// Re-render sliders when VRM loads
+// ...existing code...
+	import * as THREE from 'three';
+	import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+	import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+
+import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
+import { VRMLoaderPlugin, VRMUtils } from '@pixiv/three-vrm';
+
+import { loadMixamoAnimation } from './humanoidAnimation/loadMixamoAnimation.js';
+
+const IDLE_ANIM = 'Idle.fbx';
+
+// Play animation from animations/mixamo folder
+async function playMixamoAnim(animFile) {
+	if (!currentVrm) return;
+
+	// Prevent re-triggering Idle if already playing Idle
+	if (animFile === IDLE_ANIM && currentAction && currentAction._clip && currentAction._clip.name === 'Idle') {
+		return;
+	}
+
+	const url = `animations/mixamo/${encodeURIComponent(animFile)}`;
+	try {
+		const clip = await loadMixamoAnimation(url, currentVrm);
+		if (!currentMixer) currentMixer = new THREE.AnimationMixer(currentVrm.scene);
+		// Set animation speed slower (0.7x)
+		currentMixer.timeScale = 0.7;
+		const nextAction = currentMixer.clipAction(clip);
+		nextAction.reset();
+		nextAction.setLoop(animFile === IDLE_ANIM ? THREE.LoopRepeat : THREE.LoopOnce);
+		nextAction.clampWhenFinished = true;
+		nextAction.play();
+		if (currentAction && currentAction !== nextAction) {
+			currentAction.crossFadeTo(nextAction, 0.4, false);
+		}
+		currentAction = nextAction;
+		// Remove all previous 'finished' event listeners
+		if (currentMixer._onFinishIdleRestore) {
+			currentMixer.removeEventListener('finished', currentMixer._onFinishIdleRestore);
+			currentMixer._onFinishIdleRestore = null;
+		}
+		// When animation finishes, return to Idle (but not if already Idle)
+		if (animFile !== IDLE_ANIM) {
+			const onFinish = function(e) {
+				// Only play Idle if not already playing Idle
+				if (currentAction && currentAction._clip && currentAction._clip.name !== 'Idle') {
+					playMixamoAnim(IDLE_ANIM);
+				}
+				currentMixer.removeEventListener('finished', onFinish);
+				currentMixer._onFinishIdleRestore = null;
+			};
+			currentMixer.addEventListener('finished', onFinish);
+			currentMixer._onFinishIdleRestore = onFinish;
+		}
+	} catch (err) {
+		alert('Failed to load or retarget animation: ' + err);
+	}
+}
+
+// Animation select dropdown
+document.getElementById('play-anim-btn').addEventListener('click', () => {
+	const animFile = document.getElementById('anim-select').value;
+	if (animFile) playMixamoAnim(animFile);
+});
+
+let currentVrm = undefined;
+let currentMixer = null;
+let currentAction = null;
+
+const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('main-canvas'), alpha: true });
+renderer.setSize(window.innerWidth - 300, window.innerHeight);
+renderer.setPixelRatio(window.devicePixelRatio);
+
+	const camera = new THREE.PerspectiveCamera(30.0, (window.innerWidth-300) / window.innerHeight, 0.1, 20.0);
+// Set default camera position and rotation
+camera.position.set(-0.11, 1.99, 0.86);
+camera.rotation.set(
+  -8.57 * Math.PI / 180,
+  -8.47 * Math.PI / 180,
+  -1.27 * Math.PI / 180
+);
+// Make camera and controls globally accessible for capture button
+window.camera = camera;
+
+	const controls = new OrbitControls(camera, renderer.domElement);
+controls.screenSpacePanning = true;
+controls.target.set(0.03, 1.85, -0.04);
+controls.update();
+// Set zoom (distance) to 0.92
+const dir = new THREE.Vector3();
+dir.subVectors(camera.position, controls.target).normalize();
+camera.position.copy(controls.target).addScaledVector(dir, 0.92);
+controls.update();
+window.controls = controls;
+
+	const scene = new THREE.Scene();
+	const light = new THREE.DirectionalLight(0xffffff, Math.PI);
+	light.position.set(1.0, 1.0, 1.0).normalize();
+	scene.add(light);
+
+// Helpers removed
+
+	const loader = new GLTFLoader();
+	loader.crossOrigin = 'anonymous';
+	loader.register(parser => new VRMLoaderPlugin(parser));
+
+	function loadVRMFile(file) {
+		const reader = new FileReader();
+		reader.onload = function(e) {
+			   loader.load(
+					   URL.createObjectURL(new Blob([e.target.result])),
+					   gltf => {
+							   if (currentVrm) scene.remove(currentVrm.scene);
+							   const vrm = gltf.userData.vrm;
+							   VRMUtils.removeUnnecessaryVertices(gltf.scene);
+							   VRMUtils.combineSkeletons(gltf.scene);
+							   VRMUtils.combineMorphs(vrm);
+							   vrm.scene.traverse(obj => { obj.frustumCulled = false; });
+							  
+							   currentVrm = vrm;
+							   scene.add(vrm.scene);
+							   // Reset animation mixer if any
+							   currentMixer = null;
+							   currentAction = null;
+							   // Auto-play Idle animation if available
+							   playMixamoAnim('Idle.fbx');
+							   // If mixer is created, set slower speed
+							   if (currentMixer) currentMixer.timeScale = 0.7;
+							   // Set default face and start blinking
+							   onVrmLoaded();
+
+
+document.getElementById('anim-file').addEventListener('change', e => {
+	const file = e.target.files[0];
+	if (!file || !currentVrm) return;
+	const ext = file.name.split('.').pop().toLowerCase();
+	let url;
+	if (ext === 'glb' || ext === 'fbx') {
+		url = URL.createObjectURL(file);
+	} else {
+		alert('Unsupported animation format.');
+		return;
+	}
+	loadMixamoAnimation(url, currentVrm).then((clip) => {
+		if (!currentMixer) currentMixer = new THREE.AnimationMixer(currentVrm.scene);
+		const nextAction = currentMixer.clipAction(clip);
+		nextAction.reset();
+		nextAction.play();
+		if (currentAction && currentAction !== nextAction) {
+			currentAction.crossFadeTo(nextAction, 0.4, false);
+		}
+		currentAction = nextAction;
+		URL.revokeObjectURL(url);
+	}).catch((err) => {
+		alert('Failed to load or retarget animation: ' + err);
+		if (url) URL.revokeObjectURL(url);
+	});
+});
+					   },
+					   x => {},
+					   err => alert('Failed to load VRM: ' + err)
+			   );
+		};
+		reader.readAsArrayBuffer(file);
+	}
+
+	document.getElementById('vrm-file').addEventListener('change', e => {
+		const file = e.target.files[0];
+		if (file) loadVRMFile(file);
+	});
+
+// --- Curl Testing Panel Logic ---
+document.getElementById('curl-test-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  
+  const text = document.getElementById('curl-text').value.trim();
+  const voice = document.getElementById('curl-voice').value;
+  const emotion = document.getElementById('curl-emotion').value;
+  
+  if (!text) return;
+  
+  const statusDiv = document.getElementById('curl-status');
+  const audioEl = document.getElementById('curl-audio');
+  const curlCommandEl = document.getElementById('curl-command');
+  
+  // Generate curl command for PowerShell
+  const curlCommand = `$response = Invoke-RestMethod -Uri "https://nihalgazi-text-to-speech-unlimited.hf.space/gradio_api/call/text_to_speech_app" -Method POST -ContentType "application/json" -Body '{"data": ["${text.replace(/"/g, '\\"')}", "${voice}", "${emotion}", true, 12345]}'
+
+$eventId = $response.event_id
+Invoke-RestMethod -Uri "https://nihalgazi-text-to-speech-unlimited.hf.space/gradio_api/call/text_to_speech_app/$eventId"`;
+  
+  curlCommandEl.value = curlCommand;
+  
+  // Start timer
+  const startTime = Date.now();
+  let timerInterval;
+  
+  const updateTimer = () => {
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+    statusDiv.innerHTML = `<span style="color:#6cf;">Testing API... ${elapsed}s</span>`;
+  };
+  
+  updateTimer();
+  timerInterval = setInterval(updateTimer, 100);
+  audioEl.style.display = 'none';
+  
+  try {
+    // Step 1: Start the job
+    const response1 = await fetch('https://nihalgazi-text-to-speech-unlimited.hf.space/gradio_api/call/text_to_speech_app', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        data: [text, voice, emotion, true, 12345]
+      })
+    });
+    
+    if (!response1.ok) throw new Error(`HTTP ${response1.status}`);
+    
+    const result1 = await response1.json();
+    const eventId = result1.event_id;
+    
+    if (!eventId) throw new Error('No event ID received');
+    
+    const elapsed1 = ((Date.now() - startTime) / 1000).toFixed(1);
+    statusDiv.innerHTML = `<span style="color:#6cf;">Event ID: ${eventId}<br>Waiting for result... ${elapsed1}s</span>`;
+    
+    // Step 2: Get the result
+    const response2 = await fetch(`https://nihalgazi-text-to-speech-unlimited.hf.space/gradio_api/call/text_to_speech_app/${eventId}`);
+    
+    if (!response2.ok) throw new Error(`HTTP ${response2.status}`);
+    
+    const reader = response2.body.getReader();
+    const decoder = new TextDecoder();
+    let result = '';
+    
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      result += decoder.decode(value);
+    }
+    
+    // Parse the streaming response
+    const lines = result.split('\n').filter(line => line.startsWith('data: '));
+    let audioUrl = null;
+    let statusMessage = null;
+    
+    for (const line of lines) {
+      try {
+        const data = JSON.parse(line.substring(6)); // Remove 'data: '
+        if (Array.isArray(data) && data[0] && data[0].url) {
+          audioUrl = data[0].url;
+          statusMessage = data[1];
+          break;
+        }
+      } catch (e) {
+        // Continue parsing other lines
+      }
+    }
+    
+    if (audioUrl) {
+      clearInterval(timerInterval);
+      const totalTime = ((Date.now() - startTime) / 1000).toFixed(1);
+      statusDiv.innerHTML = `<span style="color:#0f0;">✓ Success! (${totalTime}s)</span><br><span style="color:#6cf;">${statusMessage}</span>`;
+      audioEl.src = audioUrl;
+      audioEl.style.display = 'block';
+      
+      // Auto-play and lip sync if VRM is loaded
+      if (currentVrm) {
+        audioEl.addEventListener('play', () => {
+          lipSyncToAudio(audioEl, currentVrm);
+        }, { once: true });
+      }
+      
+      audioEl.play().catch(() => {
+        // Auto-play might be blocked, that's ok
+      });
+    } else {
+      throw new Error('No audio URL in response');
+    }
+    
+  } catch (error) {
+    clearInterval(timerInterval);
+    const totalTime = ((Date.now() - startTime) / 1000).toFixed(1);
+    statusDiv.innerHTML = `<span style="color:#f44;">✗ Error: ${error.message} (${totalTime}s)</span>`;
+    console.error('Curl test error:', error);
+  }
+});
+
+// Copy curl command button
+document.getElementById('copy-curl-btn').addEventListener('click', () => {
+  const curlCommand = document.getElementById('curl-command');
+  curlCommand.select();
+  navigator.clipboard.writeText(curlCommand.value).then(() => {
+    const btn = document.getElementById('copy-curl-btn');
+    const originalText = btn.textContent;
+    btn.textContent = 'Copied!';
+    btn.style.background = '#0f0';
+    setTimeout(() => {
+      btn.textContent = originalText;
+      btn.style.background = '';
+    }, 1500);
+  });
+});
+// --- Smooth Expression Transition ---
+function smoothSetFaceExpression(targetExpr, duration = 600) {
+  if (!currentVrm) return;
+  const em = getExpressionManager(currentVrm);
+  if (!em) return;
+  // Get current blendshape values
+  const currentValues = {};
+  for (const name of Object.keys(window.vrmBlendshapeValues)) {
+	if (em.getValue) currentValues[name] = em.getValue(name) || 0;
+	else if (em.getBlendShapeWeight) currentValues[name] = em.getBlendShapeWeight(name) || 0;
+	else currentValues[name] = 0;
+  }
+  // Get target values from setFaceExpression logic
+  const targetValues = {};
+  // Use setFaceExpression's switch logic to get target blendshape values
+  // --- copy from setFaceExpression ---
+  switch (targetExpr) {
+	case 'happy':
+	  targetValues.happy = 1; targetValues.neutral = 0;
+	  break;
+	case 'angry':
+	  targetValues.angry = 1; targetValues.neutral = 0;
+	  break;
+	case 'surprised':
+	  targetValues.surprised = 1; targetValues.neutral = 0;
+	  break;
+	case 'smirk':
+	  targetValues.happy = 0.00; targetValues.angry = 0.00; targetValues.sad = 0.63; targetValues.relaxed = 0.00; targetValues.surprised = 0.00;
+	  targetValues.aa = 0.00; targetValues.ih = 1.00; targetValues.ou = 0.00; targetValues.ee = 0.99; targetValues.oh = 0.00;
+	  targetValues.blink = 0.33; targetValues.blinkLeft = 0.00; targetValues.blinkRight = 0.00; targetValues.neutral = 0.00;
+	  break;
+	case 'disappointed':
+	  targetValues.happy = 0.00; targetValues.angry = 0.00; targetValues.sad = 0.63; targetValues.relaxed = 0.00; targetValues.surprised = 0.00;
+	  targetValues.aa = 0.00; targetValues.ih = 1.00; targetValues.ou = 0.00; targetValues.ee = 0.99; targetValues.oh = 0.00;
+	  targetValues.blink = 0.33; targetValues.blinkLeft = 0.00; targetValues.blinkRight = 0.00; targetValues.neutral = 0.00;
+	  break;
+	case 'smiling':
+	  targetValues.happy = 0.31; targetValues.angry = 0.00; targetValues.sad = 0.00; targetValues.relaxed = 0.00; targetValues.surprised = 0.00;
+	  targetValues.aa = 0.00; targetValues.ih = 0.00; targetValues.ou = 0.00; targetValues.ee = 0.00; targetValues.oh = 0.00;
+	  targetValues.blink = 0.00; targetValues.blinkLeft = 0.00; targetValues.blinkRight = 0.00; targetValues.neutral = 0.00;
+	  break;
+	case 'shocky_disappointed':
+	  targetValues.happy = 0.00; targetValues.angry = 1.00; targetValues.sad = 1.00; targetValues.relaxed = 1.00; targetValues.surprised = 0.48;
+	  targetValues.aa = 0.00; targetValues.ih = 0.00; targetValues.ou = 0.00; targetValues.ee = 0.00; targetValues.oh = 0.00;
+	  targetValues.blink = 0.00; targetValues.blinkLeft = 0.00; targetValues.blinkRight = 0.00; targetValues.neutral = 1.00;
+	  break;
+	case 'annoyed':
+	  targetValues.happy = 0.00; targetValues.angry = 1.00; targetValues.sad = 0.42; targetValues.relaxed = 0.85; targetValues.surprised = 0.00;
+	  targetValues.aa = 0.00; targetValues.ih = 0.00; targetValues.ou = 0.00; targetValues.ee = 0.00; targetValues.oh = 0.00;
+	  targetValues.blink = 0.00; targetValues.blinkLeft = 0.00; targetValues.blinkRight = 0.00; targetValues.neutral = 0.00;
+	  break;
+	case 'smug':
+	  targetValues.happy = 0.00; targetValues.angry = 0.00; targetValues.sad = 0.66; targetValues.relaxed = 1.00; targetValues.surprised = 0.00;
+	  targetValues.aa = 0.00; targetValues.ih = 0.00; targetValues.ou = 0.00; targetValues.ee = 0.00; targetValues.oh = 0.00;
+	  targetValues.blink = 0.00; targetValues.blinkLeft = 0.00; targetValues.blinkRight = 0.00; targetValues.neutral = 0.00;
+	  break;
+	case 'impressed':
+	  targetValues.happy = 0.00; targetValues.angry = 0.00; targetValues.sad = 0.00; targetValues.relaxed = 0.31; targetValues.surprised = 0.00;
+	  targetValues.aa = 0.00; targetValues.ih = 0.00; targetValues.ou = 0.80; targetValues.ee = 1.00; targetValues.oh = 0.82;
+	  targetValues.blink = 0.00; targetValues.blinkLeft = 0.00; targetValues.blinkRight = 0.00; targetValues.neutral = 0.00;
+	  break;
+	case 'very_annoyed':
+	  targetValues.happy = 0.00; targetValues.angry = 1.00; targetValues.sad = 1.00; targetValues.relaxed = 1.00; targetValues.surprised = 0.00;
+	  targetValues.aa = 0.00; targetValues.ih = 0.00; targetValues.ou = 0.00; targetValues.ee = 0.00; targetValues.oh = 0.00;
+	  targetValues.blink = 0.00; targetValues.blinkLeft = 0.00; targetValues.blinkRight = 0.00; targetValues.neutral = 0.00;
+	  break;
+	case 'worried':
+	  targetValues.happy = 0.00; targetValues.angry = 0.00; targetValues.sad = 0.99; targetValues.relaxed = 0.58; targetValues.surprised = 0.00;
+	  targetValues.aa = 0.00; targetValues.ih = 0.00; targetValues.ou = 0.00; targetValues.ee = 0.00; targetValues.oh = 0.00;
+	  targetValues.blink = 0.00; targetValues.blinkLeft = 0.00; targetValues.blinkRight = 0.00; targetValues.neutral = 0.00;
+	  break;
+	default:
+	  targetValues.neutral = 1;
+	  break;
+  }
+  // Fill missing blendshapes with 0
+  for (const name of Object.keys(window.vrmBlendshapeValues)) {
+	if (!(name in targetValues)) targetValues[name] = 0;
+  }
+  // Animate blendshapes from current to target
+  const start = performance.now();
+  function animateStep(now) {
+	const t = Math.min((now - start) / duration, 1);
+	for (const name of Object.keys(window.vrmBlendshapeValues)) {
+	  const v = currentValues[name] + (targetValues[name] - currentValues[name]) * t;
+	  window.vrmBlendshapeValues[name] = v;
+	  if (em.setValue) em.setValue(name, v);
+	  else if (em.setBlendShapeWeight) em.setBlendShapeWeight(name, v);
+	}
+	if (t < 1) {
+	  requestAnimationFrame(animateStep);
+	} else {
+	  // Auto-reset to neutral after 2 seconds (if not already neutral)
+	  if (targetExpr !== 'neutral') {
+		if (window._exprResetTimer) clearTimeout(window._exprResetTimer);
+		window._exprResetTimer = setTimeout(() => {
+		  smoothSetFaceExpression('neutral');
+		}, 2000);
+	  }
+	}
+  }
+  requestAnimationFrame(animateStep);
+  currentExpression = targetExpr;
+}
+
+// Simple lip sync: animate jaw open/close based on audio volume
+function lipSyncToAudio(audio, vrm) {
+	// Remove previous analyser if any
+	if (window._vrmLipSync && window._vrmLipSync.stop) window._vrmLipSync.stop();
+	const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+const src = audioCtx.createMediaElementSource(audio);
+const analyserNode = audioCtx.createAnalyser();
+src.connect(analyserNode);
+src.connect(audioCtx.destination);
+	analyserNode.fftSize = 2048;
+	const data = new Uint8Array(analyserNode.frequencyBinCount);
+	const em = getExpressionManager(vrm);
+  // More expressive mouth shapes
+  const mouthShapes = ['aa', 'oh', 'ee', 'ou'];
+  let lastSwitch = 0;
+  let activeShapes = ['aa'];
+  let running = true;
+  window._vrmLipSync = {
+	stop: () => {
+	  running = false;
+	  try {
+		analyserNode.disconnect();
+		if (audioCtx && audioCtx.state !== 'closed') audioCtx.close();
+	  } catch (e) {}
+	}
+  };
+  function animateLip(ts) {
+	if (!running) return;
+	analyserNode.getByteTimeDomainData(data);
+	const avg = data.reduce((a, b) => a + Math.abs(b - 128), 0) / data.length;
+	// Use mouthOpen for overall intensity
+	const mouthOpen = Math.min(avg / 18, 1.0);
+	// Switch active shapes every ~120ms for more dynamic movement
+	if (!lastSwitch || ts - lastSwitch > 120) {
+	  // Pick 2-3 random shapes for this frame
+	  const numShapes = 2 + Math.floor(Math.random() * 2); // 2 or 3
+	  activeShapes = [];
+	  while (activeShapes.length < numShapes) {
+		const s = mouthShapes[Math.floor(Math.random() * mouthShapes.length)];
+		if (!activeShapes.includes(s)) activeShapes.push(s);
+	  }
+	  lastSwitch = ts;
+	}
+	// Assign random intensity to each active shape for natural look
+	for (const shape of mouthShapes) {
+	  let v = 0;
+	  if (activeShapes.includes(shape)) {
+		v = mouthOpen * (0.7 + Math.random() * 0.3); // 0.7-1.0 of mouthOpen
+	  }
+	  if (em && em.setValue) em.setValue(shape, v);
+	  else if (em && em.setBlendShapeWeight) em.setBlendShapeWeight(shape, v);
+	}
+	// Also animate 'ih' as a minor shape
+	if (em && em.setValue) em.setValue('ih', mouthOpen * 0.3);
+	else if (em && em.setBlendShapeWeight) em.setBlendShapeWeight('ih', mouthOpen * 0.3);
+	// Animate jaw
+	if (vrm.humanoid && vrm.humanoid.getBoneNode) {
+	  const jawBone = vrm.humanoid.getBoneNode('jaw');
+	  if (jawBone) jawBone.rotation.x = -mouthOpen * 0.5;
+	}
+	if (!audio.paused && !audio.ended) {
+	  requestAnimationFrame(animateLip);
+	} else {
+	  for (const shape of mouthShapes.concat(['ih'])) {
+		if (em && em.setValue) em.setValue(shape, 0);
+		else if (em && em.setBlendShapeWeight) em.setBlendShapeWeight(shape, 0);
+	  }
+	  if (vrm.humanoid && vrm.humanoid.getBoneNode) {
+		const jawBone = vrm.humanoid.getBoneNode('jaw');
+		if (jawBone) jawBone.rotation.x = 0;
+	  }
+	  window._vrmLipSync.stop();
+	}
+  }
+  requestAnimationFrame(animateLip);
+}
+
+function animate() {
+	requestAnimationFrame(animate);
+	if (currentVrm) {
+		currentVrm.update(0.016);
+		// Blinking is handled by timer and setFaceExpression
+	}
+	if (currentMixer) currentMixer.update(0.016);
+	renderer.render(scene, camera);
+}
+animate();
+	window.addEventListener('resize', () => {
+		renderer.setSize(window.innerWidth - 300, window.innerHeight);
+		camera.aspect = (window.innerWidth-300) / window.innerHeight;
+		camera.updateProjectionMatrix();
+	});
+	</script>
+</body>
+</html>
